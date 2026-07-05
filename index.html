@@ -102,6 +102,11 @@
       box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
     }
 
+    .btn-icon:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
     .page-indicator {
       font-size: 0.9rem;
       color: #666;
@@ -254,7 +259,8 @@
       let currentBookUrl = DEFAULT_EPUB_PATH;
       let book = null;
       let rendition = null;
-      let currentPageInfo = { current: 1, total: 1 };
+      let locations = null; // 存储书籍位置信息
+      let currentLocationIndex = 0;
 
       // 设置默认文件信息
       function setDefaultFileInfo() {
@@ -268,22 +274,17 @@
 
       // 更新页码显示
       function updatePageDisplay() {
-        if (rendition && rendition.currentLocation) {
-          try {
-            const location = rendition.currentLocation();
-            if (location && location.start) {
-              const current = location.start.displayed?.page || location.start.index || 1;
-              const total = location.end?.displayed?.page || location.end?.index || 1;
-              currentPageInfo.current = current;
-              currentPageInfo.total = total;
-              pageIndicator.textContent = `${current} / ${total}`;
-              return;
-            }
-          } catch (e) {
-            // 如果获取位置失败，使用存储的信息
-          }
+        if (locations && locations.length > 0) {
+          const total = locations.length;
+          const current = currentLocationIndex + 1;
+          pageIndicator.textContent = `${current} / ${total}`;
+          
+          // 更新按钮状态
+          prevBtn.disabled = currentLocationIndex <= 0;
+          nextBtn.disabled = currentLocationIndex >= total - 1;
+        } else {
+          pageIndicator.textContent = '- / -';
         }
-        pageIndicator.textContent = `${currentPageInfo.current} / ${currentPageInfo.total}`;
       }
 
       // 彻底销毁阅读器
@@ -304,10 +305,27 @@
           }
           book = null;
         }
+        locations = null;
+        currentLocationIndex = 0;
         viewerElem.innerHTML = '';
         readerWrapper.classList.remove('active');
-        currentPageInfo = { current: 1, total: 1 };
         pageIndicator.textContent = '- / -';
+        prevBtn.disabled = false;
+        nextBtn.disabled = false;
+      }
+
+      // 使用 CFI 进行翻页
+      function navigateToLocation(index) {
+        if (!rendition || !locations || locations.length === 0) return;
+        
+        if (index >= 0 && index < locations.length) {
+          currentLocationIndex = index;
+          rendition.display(locations[index]).then(() => {
+            updatePageDisplay();
+          }).catch(err => {
+            console.warn('跳转到位置失败:', err);
+          });
+        }
       }
 
       // 加载并渲染 EPUB
@@ -322,30 +340,41 @@
 
         // 等待书籍加载完成
         book.ready.then(() => {
+          // 生成位置信息
+          return book.locations.generate(150);
+        }).then((generatedLocations) => {
+          locations = generatedLocations;
+          
           // 创建渲染器
           rendition = book.renderTo(viewerElem, {
             width: '100%',
             height: '100%',
             spread: 'none',
             flow: 'paginated',
-            manager: 'default',
-            styles: true,
-            font: 'default',
-            snap: true,
+            manager: 'default'
           });
 
-          // 显示书籍内容
-          return rendition.display();
+          // 从第一个位置开始显示
+          currentLocationIndex = 0;
+          return rendition.display(locations[0]);
         }).then(() => {
-          // 初始显示后更新页码
-          setTimeout(() => {
-            updatePageDisplay();
-          }, 300);
+          updatePageDisplay();
           
-          // 监听位置变化
+          // 监听渲染位置变化（用于同步页码）
           if (rendition) {
             rendition.on('relocated', function(location) {
-              updatePageDisplay();
+              if (locations && location.start && location.start.cfi) {
+                // 查找当前 CFI 在 locations 中的位置
+                const currentCfi = location.start.cfi;
+                for (let i = 0; i < locations.length; i++) {
+                  if (locations[i] === currentCfi || 
+                      (typeof locations[i] === 'string' && locations[i].includes(currentCfi))) {
+                    currentLocationIndex = i;
+                    updatePageDisplay();
+                    break;
+                  }
+                }
+              }
             });
           }
           
@@ -360,31 +389,17 @@
 
       // 翻页函数
       function goToPrev() {
-        if (!rendition) return;
-        
-        rendition.prev().then(() => {
-          updatePageDisplay();
-        }).catch(err => {
-          console.warn('上一页失败:', err);
-          // 可能是第一页，尝试显示第一页
-          if (book && book.locations) {
-            rendition.display(book.locations.first || undefined);
-          }
-        });
+        if (!rendition || !locations || locations.length === 0) return;
+        if (currentLocationIndex > 0) {
+          navigateToLocation(currentLocationIndex - 1);
+        }
       }
 
       function goToNext() {
-        if (!rendition) return;
-        
-        rendition.next().then(() => {
-          updatePageDisplay();
-        }).catch(err => {
-          console.warn('下一页失败:', err);
-          // 可能是最后一页，尝试显示最后一页
-          if (book && book.locations) {
-            rendition.display(book.locations.last || undefined);
-          }
-        });
+        if (!rendition || !locations || locations.length === 0) return;
+        if (currentLocationIndex < locations.length - 1) {
+          navigateToLocation(currentLocationIndex + 1);
+        }
       }
 
       // 关闭阅读器
@@ -481,8 +496,10 @@
       if (DEFAULT_EPUB_PATH === 'my-book.epub') {
         console.log('📘 简约 EPUB 阅读器已启动。');
         console.log('   默认路径: ' + DEFAULT_EPUB_PATH);
-        console.log('   你可以：1) 修改代码中的 DEFAULT_EPUB_PATH 变量');
-        console.log('          2) 点击"打开本地文件"按钮上传 EPUB');
+        console.log('   使用方法：');
+        console.log('   1) 修改代码中的 DEFAULT_EPUB_PATH 变量为你的文件路径');
+        console.log('   2) 或将你的 EPUB 文件放在同目录下并命名为 my-book.epub');
+        console.log('   3) 点击"打开本地文件"按钮直接上传 EPUB');
       }
     })();
   </script>
