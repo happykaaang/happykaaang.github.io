@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-  <title>HappyKaang</title>
-  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js">
-  </script>
+  <title>我的作品 · 简约阅读</title>
+  <!-- 引入 epub.js 核心库 -->
+  <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
   <style>
+    /* 极简重置 & 基础变量 */
     * {
       margin: 0;
       padding: 0;
@@ -26,8 +27,9 @@
       transition: background 0.2s ease;
     }
 
+    /* 主卡片：干净的白底，微阴影 */
     .container {
-      max-width: 520px;
+      max-width: 480px;
       width: 100%;
       background: #ffffff;
       border-radius: 20px;
@@ -41,13 +43,14 @@
       transition: all 0.25s;
     }
 
+    /* 阅读器区域（默认隐藏，点击后展开） */
     .reader-wrapper {
       width: 100%;
       display: none;
       flex-direction: column;
       align-items: center;
       gap: 1rem;
-      margin-top: 0.5rem;
+      margin-top: 1rem;
     }
 
     .reader-wrapper.active {
@@ -66,6 +69,7 @@
       position: relative;
     }
 
+    /* 控制栏：上一页/下一页 */
     .controls {
       display: flex;
       justify-content: center;
@@ -87,7 +91,7 @@
       cursor: pointer;
       color: #2c2c2c;
       transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
@@ -99,7 +103,7 @@
 
     .btn-icon:hover {
       background: #ebebeb;
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.04);
+      box-shadow: 0 6px 14px rgba(0,0,0,0.04);
     }
 
     .btn-icon:disabled {
@@ -111,11 +115,12 @@
       font-size: 0.9rem;
       color: #666;
       font-weight: 500;
-      min-width: 70px;
+      min-width: 80px;
       text-align: center;
       letter-spacing: 0.3px;
     }
 
+    /* 按钮样式 */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -133,18 +138,20 @@
       transition: all 0.2s ease;
       text-decoration: none;
       white-space: nowrap;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .btn-primary {
       background: #1a1a1a;
       color: #ffffff;
-      box-shadow: 0 8px 16px -6px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 8px 16px -6px rgba(0,0,0,0.1);
     }
 
     .btn-primary:hover {
       background: #2c2c2c;
       transform: translateY(-1px);
-      box-shadow: 0 12px 22px -8px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 12px 22px -8px rgba(0,0,0,0.15);
     }
 
     .btn-secondary {
@@ -164,6 +171,7 @@
       justify-content: center;
     }
 
+    /* 书名和提示 */
     .book-title {
       font-size: 2rem;
       font-weight: 620;
@@ -186,6 +194,7 @@
       margin: 0.2rem 0;
     }
 
+    /* 上传隐藏input */
     .file-input-label {
       cursor: pointer;
     }
@@ -194,6 +203,7 @@
       display: none;
     }
 
+    /* 响应式 */
     @media (max-width: 480px) {
       .container {
         padding: 2rem 1.2rem;
@@ -209,23 +219,29 @@
 </head>
 <body>
   <div class="container" id="mainCard">
+    <!-- 书籍信息区域 -->
     <div class="book-title" id="bookNameDisplay">📖 我的作品</div>
     <div class="divider"></div>
     <div class="book-meta" id="fileNameDisplay">未选择文件</div>
 
+    <!-- 操作按钮组 -->
     <div class="btn-group" id="actionButtons">
+      <!-- 在线阅读按钮 -->
       <button class="btn btn-primary" id="readOnlineBtn">
         <span>📖</span> 在线阅读
       </button>
+      <!-- 下载按钮（动态设置href） -->
       <a class="btn btn-secondary" id="downloadBtn" href="#" download>
         <span>⬇️</span> 下载 EPUB
       </a>
+      <!-- 更换文件按钮（通过隐藏的file input） -->
       <label class="btn btn-secondary file-input-label" for="fileInput">
         <span>📂</span> 打开本地文件
       </label>
       <input type="file" id="fileInput" accept=".epub">
     </div>
 
+    <!-- 阅读器容器（默认隐藏） -->
     <div class="reader-wrapper" id="readerWrapper">
       <div class="viewer" id="viewer"></div>
       <div class="controls">
@@ -241,9 +257,10 @@
 
   <script>
     (function() {
-      // 默认 EPUB 文件路径（请修改为你的实际文件路径）
-      const DEFAULT_EPUB_PATH = '2026_古典名句单向历_分散版.epub';  // 指向上传的EPUB文件
+      // 配置：默认 EPUB 文件路径
+      const DEFAULT_EPUB_PATH = '2026_古典名句单向历_分散版.epub';
 
+      // DOM 元素
       const bookNameDisplay = document.getElementById('bookNameDisplay');
       const fileNameDisplay = document.getElementById('fileNameDisplay');
       const readOnlineBtn = document.getElementById('readOnlineBtn');
@@ -256,13 +273,14 @@
       const pageIndicator = document.getElementById('pageIndicator');
       const closeReaderBtn = document.getElementById('closeReaderBtn');
 
+      // 当前状态
       let currentBookUrl = DEFAULT_EPUB_PATH;
       let book = null;
       let rendition = null;
-      let locations = null; // 存储书籍位置信息
+      let locations = null;
       let currentLocationIndex = 0;
 
-      // 设置默认文件信息
+      // 初始化：设置默认下载链接与显示名称
       function setDefaultFileInfo() {
         const fileName = currentBookUrl.split('/').pop() || 'my-book.epub';
         fileNameDisplay.textContent = fileName;
@@ -272,28 +290,30 @@
         bookNameDisplay.textContent = bookName || '📖 我的作品';
       }
 
-      // 更新页码显示
+      // 更新页码指示器
       function updatePageDisplay() {
         if (locations && locations.length > 0) {
           const total = locations.length;
           const current = currentLocationIndex + 1;
           pageIndicator.textContent = `${current} / ${total}`;
           
-          // 更新按钮状态
+          // 更新按钮禁用状态
           prevBtn.disabled = currentLocationIndex <= 0;
           nextBtn.disabled = currentLocationIndex >= total - 1;
         } else {
           pageIndicator.textContent = '- / -';
+          prevBtn.disabled = true;
+          nextBtn.disabled = true;
         }
       }
 
-      // 彻底销毁阅读器
+      // 清理当前阅读器
       function destroyReader() {
         if (rendition) {
           try {
             rendition.destroy();
           } catch (e) {
-            console.warn('销毁 rendition 时出错:', e);
+            console.warn('销毁渲染器出错:', e);
           }
           rendition = null;
         }
@@ -301,7 +321,7 @@
           try {
             book.destroy();
           } catch (e) {
-            console.warn('销毁 book 时出错:', e);
+            console.warn('销毁书籍出错:', e);
           }
           book = null;
         }
@@ -309,96 +329,78 @@
         currentLocationIndex = 0;
         viewerElem.innerHTML = '';
         readerWrapper.classList.remove('active');
-        pageIndicator.textContent = '- / -';
-        prevBtn.disabled = false;
-        nextBtn.disabled = false;
+        updatePageDisplay();
       }
 
-      // 使用 CFI 进行翻页
-      function navigateToLocation(index) {
-        if (!rendition || !locations || locations.length === 0) return;
-        
-        if (index >= 0 && index < locations.length) {
-          currentLocationIndex = index;
-          rendition.display(locations[index]).then(() => {
+      // 加载并渲染 epub
+      function loadEpub(url) {
+        destroyReader();
+        readerWrapper.classList.add('active');
+
+        try {
+          book = ePub(url);
+
+          // 当书籍准备好时
+          book.ready.then(() => {
+            console.log('📚 书籍已加载');
+            
+            // 生成分页位置
+            return book.locations.generate(300);
+          }).then(() => {
+            locations = book.locations.all();
+            console.log('📖 共 ' + locations.length + ' 页');
+
+            // 创建渲染器
+            rendition = book.renderTo(viewerElem, {
+              width: '100%',
+              height: '100%',
+              spread: 'none',
+              flow: 'paginated'
+            });
+
+            // 显示第一页
+            currentLocationIndex = 0;
+            return rendition.display(locations[0]);
+          }).then(() => {
             updatePageDisplay();
+            console.log('✅ 阅读器已就绪');
           }).catch(err => {
-            console.warn('跳转到位置失败:', err);
+            console.error('❌ 加载错误:', err);
+            alert('加载失败: ' + err.message);
+            destroyReader();
           });
+
+        } catch (err) {
+          console.error('❌ 初始化错误:', err);
+          alert('初始化失败: ' + err.message);
+          destroyReader();
         }
       }
 
-      // 加载并渲染 EPUB
-      function loadEpub(url) {
-        destroyReader();
-
-        // 创建 Book 实例
-        book = ePub(url, { 
-          openAs: 'epub',
-          restore: false 
-        });
-
-        // 等待书籍加载完成
-        book.ready.then(() => {
-          // 生成位置信息
-          return book.locations.generate(150);
-        }).then((generatedLocations) => {
-          locations = generatedLocations;
-          
-          // 创建渲染器
-          rendition = book.renderTo(viewerElem, {
-            width: '100%',
-            height: '100%',
-            spread: 'none',
-            flow: 'paginated',
-            manager: 'default'
-          });
-
-          // 从第一个位置开始显示
-          currentLocationIndex = 0;
-          return rendition.display(locations[0]);
-        }).then(() => {
-          updatePageDisplay();
-          
-          // 监听渲染位置变化（用于同步页码）
-          if (rendition) {
-            rendition.on('relocated', function(location) {
-              if (locations && location.start && location.start.cfi) {
-                // 查找当前 CFI 在 locations 中的位置
-                const currentCfi = location.start.cfi;
-                for (let i = 0; i < locations.length; i++) {
-                  if (locations[i] === currentCfi || 
-                      (typeof locations[i] === 'string' && locations[i].includes(currentCfi))) {
-                    currentLocationIndex = i;
-                    updatePageDisplay();
-                    break;
-                  }
-                }
-              }
-            });
-          }
-          
-          // 显示阅读器
-          readerWrapper.classList.add('active');
-        }).catch(err => {
-          console.error('加载 EPUB 失败:', err);
-          alert('无法加载 EPUB 文件。请检查文件路径是否正确，或文件是否有效。\n\n错误信息: ' + err.message);
-          destroyReader();
-        });
-      }
-
-      // 翻页函数
+      // 翻页操作
       function goToPrev() {
         if (!rendition || !locations || locations.length === 0) return;
+        
         if (currentLocationIndex > 0) {
-          navigateToLocation(currentLocationIndex - 1);
+          currentLocationIndex--;
+          rendition.display(locations[currentLocationIndex])
+            .then(() => {
+              updatePageDisplay();
+            })
+            .catch(err => console.warn('翻页错误:', err));
         }
       }
 
       function goToNext() {
         if (!rendition || !locations || locations.length === 0) return;
+        
         if (currentLocationIndex < locations.length - 1) {
-          navigateToLocation(currentLocationIndex + 1);
+          currentLocationIndex++;
+          rendition.display(locations[currentLocationIndex])
+            .then(() => {
+              updatePageDisplay();
+            })
+            .catch(err => console.warn('翻页错误:', err));
         }
       }
 
@@ -434,18 +436,8 @@
         loadEpub(currentBookUrl);
       });
 
-      prevBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        goToPrev();
-      });
-
-      nextBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        goToNext();
-      });
-
+      prevBtn.addEventListener('click', goToPrev);
+      nextBtn.addEventListener('click', goToNext);
       closeReaderBtn.addEventListener('click', closeReader);
       fileInput.addEventListener('change', handleFileSelect);
 
@@ -460,12 +452,11 @@
           e.preventDefault();
           goToNext();
         } else if (e.key === 'Escape') {
-          e.preventDefault();
           closeReader();
         }
       });
 
-      // 触摸滑动支持
+      // 触摸滑动翻页
       let touchStartX = 0;
       viewerElem.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
@@ -473,6 +464,7 @@
 
       viewerElem.addEventListener('touchend', (e) => {
         if (!readerWrapper.classList.contains('active')) return;
+        
         const touchEndX = e.changedTouches[0].clientX;
         const diff = touchStartX - touchEndX;
         
@@ -485,22 +477,13 @@
         }
       });
 
-      // 页面卸载时清理
+      // 页面卸载时释放资源
       window.addEventListener('beforeunload', () => {
         destroyReader();
       });
 
-      // 初始化
+      // 启动
       setDefaultFileInfo();
-
-      if (DEFAULT_EPUB_PATH === 'my-book.epub') {
-        console.log('📘 简约 EPUB 阅读器已启动。');
-        console.log('   默认路径: ' + DEFAULT_EPUB_PATH);
-        console.log('   使用方法：');
-        console.log('   1) 修改代码中的 DEFAULT_EPUB_PATH 变量为你的文件路径');
-        console.log('   2) 或将你的 EPUB 文件放在同目录下并命名为 my-book.epub');
-        console.log('   3) 点击"打开本地文件"按钮直接上传 EPUB');
-      }
     })();
   </script>
 </body>
